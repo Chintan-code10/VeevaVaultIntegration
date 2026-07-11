@@ -1,21 +1,71 @@
-<!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<!doctype html>
+<html lang="en">
 <head>
-    <title>Wonder Drugs</title>
-
-    <link rel="stylesheet"
-          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-    <link rel="stylesheet" th:href="@{/css/map.css}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+   <title>WonderDrugs - Vault Integration</title>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; padding: 20px; }
+    .loading { display: none; font-weight: bold; color: green; }
+  </style>
 </head>
 <body>
+  <h2>Study Site Map Dashboard</h2>
+  <p id="loading" class="loading">Loading... Please wait</p>
+  <div id="result"></div>
 
-<h1>World Map</h1>
+  <script type="text/javascript">
+    const ALLOWED_PARENT_ORIGIN = 'https://mssandbox-chintan.veevavault.com';
+    let sessionId = '';
 
-<div id="map"></div>
+    function showLoading(show) {
+      document.getElementById('loading').style.display = show ? 'block' : 'none';
+    }
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script th:src="@{/js/map.js}"></script>
+    $(window).on('load', function() {
+      const readyMessage = JSON.stringify({ message_id: 'ready', data: {} });
+      window.parent.postMessage(readyMessage, ALLOWED_PARENT_ORIGIN);
+    });
 
+    $(window).on('message', async function(e) {
+      const original = e.originalEvent || e;
+      try {
+        if (ALLOWED_PARENT_ORIGIN !== '*' && original.origin !== ALLOWED_PARENT_ORIGIN) {
+          return;
+        }
+
+        const message = JSON.parse(original.data);
+        if (message.message_id === 'session_id' && message.data && message.data.session_id) {
+          sessionId = message.data.session_id;
+
+          if (sessionId) {
+            showLoading(true);
+            try {
+              const resp = await fetch('/vault-integration/wonderdrugs', {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json',
+                  'X-Session-Id': sessionId
+                },
+                credentials: 'include'
+              });
+
+              const text = await resp.text();
+              showLoading(false);
+              document.open();
+              document.write(text);
+              document.close();
+            } catch (err) {
+              showLoading(false);
+              document.getElementById('result').textContent = 'API call failed: ' + err;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse or handle message', err);
+      }
+    });
+  </script>
 </body>
 </html>
